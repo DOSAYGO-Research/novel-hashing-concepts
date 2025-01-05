@@ -1,0 +1,15 @@
+{
+  "name": "novel-hash-concepts",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "@dosy",
+  "type": "module",
+  "main": "src/test.js",
+  "scripts": {
+    "test": "node src/test.js"
+  },
+  "dependencies": {
+    "mathjs": "latest"
+  }
+}
