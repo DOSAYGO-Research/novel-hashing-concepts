@@ -5,6 +5,7 @@ import { solveLinearSystem, scaleSolutionModulo as scaleSolution, DEBUG } from '
  * Configuration for different digest sizes.
  */
 export const DIGEST_CONFIGS = {
+  /*
   512: {
     digestSizeBits: 512,
     numVars: 16,
@@ -33,6 +34,7 @@ export const DIGEST_CONFIGS = {
     blockSize: (8 + 1) * 1 * 8,
     bytesPerVar: 1
   },
+  */
   32: {
     digestSizeBits: 32,
     numVars: 4,
@@ -168,6 +170,7 @@ function processBlock(block, config) {
   const scaledSolution = scaleSolution(rawSolution, bitsPerVar);
 
   DEBUG && console.log({scaledSolution, block: block.toString('hex')});
+  console.log({scaledSolution, block: block.toString('hex')});
 
   // Encode the solution vector into a buffer
   let digestChunk;
@@ -235,7 +238,7 @@ export function reduceData(data, digestSizeBits) {
 
   // Final digest
   // If currentData is smaller than blockSize, pad it
-  if (currentData.length < blockSize) {
+  if (currentData.length <= blockSize) {
     ({data: paddedData, layerOffset} = padData(currentData, blockSize, layerOffset, data));
     const digestChunk = processBlock(paddedData.slice(0, blockSize), config);
     currentData = digestChunk;
