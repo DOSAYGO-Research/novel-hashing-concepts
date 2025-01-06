@@ -1,5 +1,5 @@
 // reducer.js
-import { solveLinearSystem, scaleSolutionModulo as scaleSolution, DEBUG } from './solver.js';
+import { solveLinearSystem, scaleSolutionModulo as scaleSolution, DEBUG, EPSILON } from './solver.js';
 
 /**
  * Configuration for different digest sizes.
@@ -109,7 +109,12 @@ function processBlock(block, config) {
           throw new Error(`Unsupported bytesPerVar: ${bytesPerVar}`);
       }
       if ( i == j && value == 0 ) {
+        // should we also scale up every value by 1 ? 
         value = 1;
+        /* // which is right?
+        value = 1;
+        value = 2**bitsPerVar;
+        */
       }
       row.push(value);
       offset += bytesPerVar;

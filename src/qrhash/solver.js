@@ -1,8 +1,8 @@
 // solver.js
-const EPSILON = 1e-5;
 import { create, all } from 'mathjs'; // Math.js for matrix operations
 const math = create(all);
 
+export const EPSILON = 1e-5;
 export const DEBUG = false;
 
 /**
