@@ -17,6 +17,13 @@ function flipRandomBit(data) {
   return modifiedData;
 }
 
+function flipRandomByte(data) {
+  const modifiedData = Buffer.from(data); // Create a copy of the buffer
+  const byteIndex = Math.floor(Math.random() * modifiedData.length);
+  modifiedData[byteIndex] = Math.floor(Math.random()*256);
+  return modifiedData;
+}
+
 /**
  * Converts a Buffer to a hexadecimal string.
  *
@@ -82,14 +89,14 @@ function compareDigests(originalDigests, modifiedDigests) {
 /**
  * Runs all tests by generating messages M and M', computing their digests, and comparing them.
  */
-function runAllTests() {
+function runAllTests(byte = false) {
   // Generate original message M with arbitrary length (e.g., 10,000 bytes)
   const originalData = crypto.randomBytes(10000); // Adjust size as needed
   console.log("=== Running Tests on Original Message (M) ===");
   const originalDigests = computeDigests(originalData);
 
   // Generate modified message M' by flipping one random bit in M
-  const modifiedData = flipRandomBit(originalData);
+  const modifiedData = byte ? flipRandomByte(originalData) : flipRandomBit(originalData);
   console.log("\n=== Running Tests on Modified Message (M') ===");
   const modifiedDigests = computeDigests(modifiedData);
 
@@ -99,4 +106,5 @@ function runAllTests() {
 
 // Run the tests
 runAllTests();
+runAllTests(true);
 

@@ -3,6 +3,8 @@ const EPSILON = 1e-5;
 import { create, all } from 'mathjs'; // Math.js for matrix operations
 const math = create(all);
 
+export const DEBUG = false;
+
 /**
  * Solves a perfectly determined linear system A * x = b.
  * 

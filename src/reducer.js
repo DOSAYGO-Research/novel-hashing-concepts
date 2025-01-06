@@ -1,5 +1,5 @@
 // reducer.js
-import { solveLinearSystem, scaleSolutionModulo as scaleSolution } from './solver.js';
+import { solveLinearSystem, scaleSolutionModulo as scaleSolution, DEBUG } from './solver.js';
 
 /**
  * Configuration for different digest sizes.
@@ -52,24 +52,27 @@ export const DIGEST_CONFIGS = {
  * @param {number} layerOffset - Offset for padding to shift the padding position.
  * @returns {Buffer} - Padded data.
  */
-function padData(data, blockSize, layerOffset) {
+function padData(data, blockSize, layerOffset, OG_data) {
   // Create 8-byte length buffer
   const lengthBuffer = Buffer.alloc(8);
-  lengthBuffer.writeBigUInt64BE(BigInt(data.length));
+  lengthBuffer.writeUInt32BE(OG_data.length+1);
+  data = Buffer.concat([data, lengthBuffer]);
 
-  // Determine padding start position
-  const paddingStart = layerOffset % data.length;
-  const paddingData = Buffer.concat([data.slice(paddingStart), lengthBuffer]);
+  let paddingNeeded = (blockSize - ((data.length) % blockSize)) % blockSize;
 
-  // Calculate required padding to reach multiple of blockSize
-  const totalPaddedLength = data.length + paddingData.length;
-  const paddedLength = Math.ceil(totalPaddedLength / blockSize) * blockSize;
+  while ( paddingNeeded != 0 ) {
+    DEBUG && console.log({data: data.toString('hex'), OG_dataLength: OG_data.length, blockSize, paddingNeeded});
+    // Determine padding start position
+    const paddingStart = layerOffset % OG_data.length;
+    const paddingData = OG_data.slice(paddingStart, paddingStart + paddingNeeded);
+    layerOffset += Math.min(paddingData.length, paddingNeeded);
 
-  // Zero-pad the remaining bytes
-  const paddingBytes = paddedLength - totalPaddedLength;
-  const zeroPadding = Buffer.alloc(paddingBytes, 0);
+    data = Buffer.concat([data, paddingData]);
 
-  return Buffer.concat([data, paddingData, zeroPadding]);
+    paddingNeeded = (blockSize - ((data.length) % blockSize)) % blockSize;
+  }
+
+  return {layerOffset, data};
 }
 
 /**
@@ -135,7 +138,7 @@ function processBlock(block, config) {
   }
 
   // Solve the linear system
-  //console.log({block, bitsPerVar, config});
+  DEBUG && console.log({block, bitsPerVar, config});
   const solutionObj = solveLinearSystem(coefficients, constants);
   const rawSolution = solutionObj.rawSolution;
 
@@ -163,6 +166,8 @@ function processBlock(block, config) {
 
   // Scale the solution
   const scaledSolution = scaleSolution(rawSolution, bitsPerVar);
+
+  DEBUG && console.log({scaledSolution, block: block.toString('hex')});
 
   // Encode the solution vector into a buffer
   let digestChunk;
@@ -208,16 +213,18 @@ export function reduceData(data, digestSizeBits) {
   const { blockSize } = config;
   let currentData = data;
   let layerOffset = 0;
+  let paddedData;
 
   while (currentData.length > blockSize) {
     // Pad the data
-    const paddedData = padData(currentData, blockSize, layerOffset);
+    ({data: paddedData, layerOffset} = padData(currentData, blockSize, layerOffset, data));
 
     // Process each block
     const chunks = [];
     for (let i = 0; i < paddedData.length; i += blockSize) {
       const block = paddedData.slice(i, i + blockSize);
       const digestChunk = processBlock(block, config);
+      DEBUG && console.log({digestChunk: digestChunk.toString('hex')});
       chunks.push(digestChunk);
     }
 
@@ -229,7 +236,7 @@ export function reduceData(data, digestSizeBits) {
   // Final digest
   // If currentData is smaller than blockSize, pad it
   if (currentData.length < blockSize) {
-    const paddedData = padData(currentData, blockSize, layerOffset);
+    ({data: paddedData, layerOffset} = padData(currentData, blockSize, layerOffset, data));
     const digestChunk = processBlock(paddedData.slice(0, blockSize), config);
     currentData = digestChunk;
   }
