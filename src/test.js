@@ -1,58 +1,175 @@
-import { solveLinearSystem } from './solver.js';
+// test.js
+import { solveLinearSystem, scaleSolutionModulo as scaleSolution } from './solver.js';
 import crypto from 'crypto';
 
-function generatePerfectlyDeterminedSystem(data, numVariables) {
+/**
+ * Configuration for different digest sizes.
+ */
+const DIGEST_CONFIGS = [
+  {
+    digestSizeBits: 512,
+    numVars: 16,
+    bitsPerVar: 32,
+    bytesPerVar: 4
+  },
+  {
+    digestSizeBits: 256,
+    numVars: 16,
+    bitsPerVar: 16,
+    bytesPerVar: 2
+  },
+  {
+    digestSizeBits: 128,
+    numVars: 8,
+    bitsPerVar: 16,
+    bytesPerVar: 2
+  },
+  {
+    digestSizeBits: 64,
+    numVars: 8,
+    bitsPerVar: 8,
+    bytesPerVar: 1
+  },
+  {
+    digestSizeBits: 32,
+    numVars: 4,
+    bitsPerVar: 8,
+    bytesPerVar: 1
+  }
+];
+
+/**
+ * Generates a perfectly determined system based on the digest configuration.
+ * 
+ * @param {Buffer} data - Binary data buffer.
+ * @param {number} numVars - Number of variables.
+ * @param {number} bytesPerVar - Bytes per variable.
+ * @returns {Object} - Coefficients and constants.
+ */
+function generatePerfectlyDeterminedSystem(data, numVars, bytesPerVar) {
   const coefficients = [];
   const constants = [];
+  const totalEquations = numVars;
 
-  // Generate exactly numVariables equations
-  for (let i = 0; i < numVariables; i++) {
+  for (let i = 0; i < totalEquations; i++) {
     const row = [];
-    for (let j = 0; j < numVariables; j++) {
-      row.push(data.readInt32LE((i * numVariables + j) * 4));
+    for (let j = 0; j < numVars; j++) {
+      const offset = (i * numVars + j) * bytesPerVar;
+      let value;
+      switch (bytesPerVar) {
+        case 4:
+          value = data.readInt32LE(offset);
+          break;
+        case 2:
+          value = data.readInt16LE(offset);
+          break;
+        case 1:
+          value = data.readUInt8(offset);
+          break;
+        default:
+          throw new Error(`Unsupported bytesPerVar: ${bytesPerVar}`);
+      }
+      row.push(value);
     }
     coefficients.push(row);
-    constants.push(data.readInt32LE(i * 4 + numVariables * 4));
+
+    // Read constant
+    const constOffset = (totalEquations * numVars * bytesPerVar) + (i * bytesPerVar);
+    let constant;
+    switch (bytesPerVar) {
+      case 4:
+        constant = data.readInt32LE(constOffset);
+        break;
+      case 2:
+        constant = data.readInt16LE(constOffset);
+        break;
+      case 1:
+        constant = data.readUInt8(constOffset);
+        break;
+      default:
+        throw new Error(`Unsupported bytesPerVar: ${bytesPerVar}`);
+    }
+    constants.push(constant);
   }
 
   return { coefficients, constants };
 }
 
-function testPerfectlyDeterminedSolver() {
-  // Generate random 16 KB chunk of data
-  const chunkSize = 64 * 64 * 4; // 64 equations x 64 variables x 4 bytes
-  const randomData = crypto.randomBytes(chunkSize);
+/**
+ * Tests the solver for a given digest configuration.
+ * 
+ * @param {Object} config - Digest configuration.
+ */
+function testSolverForConfig(config) {
+  const { digestSizeBits, numVars, bitsPerVar, bytesPerVar } = config;
 
-  // Define number of variables and equations
-  const numVariables = 64;
+  console.log(`\nTesting digest size: ${digestSizeBits} bits`);
 
-  // Generate system of equations
-  const { coefficients, constants } = generatePerfectlyDeterminedSystem(randomData, numVariables);
+  // Step 1: Calculate block size
+  const blockSize = (numVars * bytesPerVar) + (numVars * bytesPerVar); // Coefficients + constants
+  // Adjust blockSize to include all coefficients and constants
+  // For each equation: numVars * bytesPerVar (coefficients) + bytesPerVar (constant)
+  const adjustedBlockSize = numVars * (numVars + 1) * bytesPerVar;
 
-  // Solve the system
-  const solution = solveLinearSystem(coefficients, constants);
+  // Step 2: Generate random data for the block
+  const randomData = crypto.randomBytes(adjustedBlockSize);
 
-  // Verify the solution
+  // Step 3: Generate the system of equations
+  const { coefficients, constants } = generatePerfectlyDeterminedSystem(randomData, numVars, bytesPerVar);
+
+  // Step 4: Solve the system
+  let solutionObj;
+  try {
+    solutionObj = solveLinearSystem(coefficients, constants);
+  } catch (error) {
+    console.error(`Solver failed for digest size ${digestSizeBits} bits:`, error.message);
+    return;
+  }
+
+  const rawSolution = solutionObj.rawSolution;
+
+  // Step 5: Verify the solution (A * x ≈ b)
   let isCorrect = true;
-  for (let i = 0; i < numVariables; i++) {
-    const lhs = coefficients[i].reduce((sum, coeff, j) => sum + coeff * solution[j], 0);
-    if (Math.abs(lhs - constants[i]) > Math.abs(lhs*1e-6)) {
-      console.error(`Equation ${i} failed: LHS=${lhs}, RHS=${constants[i]}`);
+  for (let i = 0; i < numVars; i++) {
+    let lhs = 0;
+    for (let j = 0; j < numVars; j++) {
+      lhs += coefficients[i][j] * rawSolution[j];
+    }
+
+    const rhs = constants[i];
+
+    // Allow a small absolute error
+    if (Math.abs(lhs - rhs) > 1e-3) { // Tolerance based on float precision
+      console.error(`Equation ${i} failed: LHS=${lhs}, RHS=${rhs}, Error=${Math.abs(lhs - rhs)}`);
       isCorrect = false;
-      //break;
+      // Continue checking all equations
     }
   }
 
-  // Report results
   if (isCorrect) {
-    console.log('Test passed: Solution is correct for perfectly determined system.');
-    // encode the solution vector in mostly positive integers
-    console.log(solution.map(x => Math.round(x*2**29 + 2**31)));
+    console.log(`Verification passed: Raw solution satisfies all equations for ${digestSizeBits}-bit digest.`);
+    
+    // Step 6: Scale the solution
+    const scaledSolution = scaleSolution(rawSolution, bitsPerVar);
+    
+    // Optional: Verify scaled solution maps back appropriately (for debugging)
+    // Note: This verification is non-trivial due to scaling, so it's omitted here.
+
+    console.log(`Scaled Solution Vector (${bitsPerVar} bits per var):`, scaledSolution);
   } else {
-    console.error('Test failed: Solution did not satisfy all equations.');
+    console.error(`Verification failed: Solution does not satisfy all equations for ${digestSizeBits}-bit digest.`);
   }
 }
 
-// Run the test
-testPerfectlyDeterminedSolver();
+/**
+ * Runs all tests based on digest configurations.
+ */
+function runAllTests() {
+  DIGEST_CONFIGS.forEach(config => {
+    testSolverForConfig(config);
+  });
+}
+
+// Run the tests
+runAllTests();
 
