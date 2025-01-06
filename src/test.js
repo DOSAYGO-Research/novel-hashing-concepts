@@ -39,6 +39,20 @@ const DIGEST_CONFIGS = [
 ];
 
 /**
+ * Flips a random bit in a random byte of the input data buffer.
+ *
+ * @param {Buffer} data - The input data buffer.
+ * @returns {Buffer} - A new buffer with one bit flipped.
+ */
+function flipRandomBit(data) {
+  const modifiedData = Buffer.from(data); // Create a copy of the buffer
+  const byteIndex = Math.floor(Math.random() * modifiedData.length);
+  const bitIndex = Math.floor(Math.random() * 8);
+  modifiedData[byteIndex] ^= 1 << bitIndex; // Flip the bit using XOR
+  return modifiedData;
+}
+
+/**
  * Generates a perfectly determined system based on the digest configuration.
  * 
  * @param {Buffer} data - Binary data buffer.
@@ -165,6 +179,7 @@ function testSolverForConfig(config) {
  * Runs all tests based on digest configurations.
  */
 function runAllTests() {
+
   DIGEST_CONFIGS.forEach(config => {
     testSolverForConfig(config);
   });
