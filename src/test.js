@@ -91,7 +91,7 @@ function compareDigests(originalDigests, modifiedDigests) {
  */
 function runAllTests(byte = false) {
   // Generate original message M with arbitrary length (e.g., 10,000 bytes)
-  const originalData = crypto.randomBytes(20); // Adjust size as needed
+  const originalData = crypto.randomBytes(2000000); // Adjust size as needed
   console.log("=== Running Tests on Original Message (M) ===");
   const originalDigests = computeDigests(originalData);
 

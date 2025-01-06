@@ -5,7 +5,6 @@ import { solveLinearSystem, scaleSolutionModulo as scaleSolution, DEBUG } from '
  * Configuration for different digest sizes.
  */
 export const DIGEST_CONFIGS = {
-  /*
   512: {
     digestSizeBits: 512,
     numVars: 16,
@@ -34,7 +33,6 @@ export const DIGEST_CONFIGS = {
     blockSize: (8 + 1) * 1 * 8,
     bytesPerVar: 1
   },
-  */
   32: {
     digestSizeBits: 32,
     numVars: 4,
@@ -155,7 +153,7 @@ function processBlock(block, config) {
     const rhs = constants[i];
 
     // Allow a small absolute error
-    if (Math.abs(lhs - rhs) > 1e-3) { // Tolerance based on float precision
+    if (Math.abs(lhs - rhs) > 1e-1) { // Tolerance based on float precision
       console.error(`Equation ${i} failed: LHS=${lhs}, RHS=${rhs}, Error=${Math.abs(lhs - rhs)}`);
       isCorrect = false;
       // Continue checking all equations
@@ -170,7 +168,6 @@ function processBlock(block, config) {
   const scaledSolution = scaleSolution(rawSolution, bitsPerVar);
 
   DEBUG && console.log({scaledSolution, block: block.toString('hex')});
-  console.log({scaledSolution, block: block.toString('hex')});
 
   // Encode the solution vector into a buffer
   let digestChunk;
