@@ -105,6 +105,9 @@ function processBlock(block, config) {
         default:
           throw new Error(`Unsupported bytesPerVar: ${bytesPerVar}`);
       }
+      if ( i == j && value == 0 ) {
+        value = 1;
+      }
       row.push(value);
       offset += bytesPerVar;
     }
@@ -132,7 +135,7 @@ function processBlock(block, config) {
   }
 
   // Solve the linear system
-  console.log({block, bitsPerVar, config});
+  //console.log({block, bitsPerVar, config});
   const solutionObj = solveLinearSystem(coefficients, constants);
   const rawSolution = solutionObj.rawSolution;
 
@@ -220,7 +223,7 @@ export function reduceData(data, digestSizeBits) {
 
     // Concatenate digest chunks for the next iteration
     currentData = Buffer.concat(chunks);
-    layerOffset += (blockSize - (currentData % blockSize)) - 8;
+    //layerOffset += (blockSize - (currentData.length % blockSize)) - 8;
   }
 
   // Final digest
