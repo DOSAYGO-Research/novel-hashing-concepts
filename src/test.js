@@ -1,42 +1,7 @@
 // test.js
-import { solveLinearSystem, scaleSolutionModulo as scaleSolution } from './solver.js';
+import { reduceData, DIGEST_CONFIGS } from './reducer.js';
 import crypto from 'crypto';
 
-/**
- * Configuration for different digest sizes.
- */
-const DIGEST_CONFIGS = [
-  {
-    digestSizeBits: 512,
-    numVars: 16,
-    bitsPerVar: 32,
-    bytesPerVar: 4
-  },
-  {
-    digestSizeBits: 256,
-    numVars: 16,
-    bitsPerVar: 16,
-    bytesPerVar: 2
-  },
-  {
-    digestSizeBits: 128,
-    numVars: 8,
-    bitsPerVar: 16,
-    bytesPerVar: 2
-  },
-  {
-    digestSizeBits: 64,
-    numVars: 8,
-    bitsPerVar: 8,
-    bytesPerVar: 1
-  },
-  {
-    digestSizeBits: 32,
-    numVars: 4,
-    bitsPerVar: 8,
-    bytesPerVar: 1
-  }
-];
 
 /**
  * Flips a random bit in a random byte of the input data buffer.
@@ -53,136 +18,83 @@ function flipRandomBit(data) {
 }
 
 /**
- * Generates a perfectly determined system based on the digest configuration.
- * 
- * @param {Buffer} data - Binary data buffer.
- * @param {number} numVars - Number of variables.
- * @param {number} bytesPerVar - Bytes per variable.
- * @returns {Object} - Coefficients and constants.
+ * Converts a Buffer to a hexadecimal string.
+ *
+ * @param {Buffer} buffer - The buffer to convert.
+ * @returns {string} - Hexadecimal representation of the buffer.
  */
-function generatePerfectlyDeterminedSystem(data, numVars, bytesPerVar) {
-  const coefficients = [];
-  const constants = [];
-  const totalEquations = numVars;
-
-  for (let i = 0; i < totalEquations; i++) {
-    const row = [];
-    for (let j = 0; j < numVars; j++) {
-      const offset = (i * numVars + j) * bytesPerVar;
-      let value;
-      switch (bytesPerVar) {
-        case 4:
-          value = data.readInt32LE(offset);
-          break;
-        case 2:
-          value = data.readInt16LE(offset);
-          break;
-        case 1:
-          value = data.readUInt8(offset);
-          break;
-        default:
-          throw new Error(`Unsupported bytesPerVar: ${bytesPerVar}`);
-      }
-      row.push(value);
-    }
-    coefficients.push(row);
-
-    // Read constant
-    const constOffset = (totalEquations * numVars * bytesPerVar) + (i * bytesPerVar);
-    let constant;
-    switch (bytesPerVar) {
-      case 4:
-        constant = data.readInt32LE(constOffset);
-        break;
-      case 2:
-        constant = data.readInt16LE(constOffset);
-        break;
-      case 1:
-        constant = data.readUInt8(constOffset);
-        break;
-      default:
-        throw new Error(`Unsupported bytesPerVar: ${bytesPerVar}`);
-    }
-    constants.push(constant);
-  }
-
-  return { coefficients, constants };
+function bufferToHex(buffer) {
+  return buffer.toString('hex');
 }
 
 /**
- * Tests the solver for a given digest configuration.
- * 
- * @param {Object} config - Digest configuration.
+ * Runs the digest reduction on given data for all configured digest sizes.
+ *
+ * @param {Buffer} data - The input data buffer.
+ * @returns {Object} - An object mapping digest sizes to their corresponding digests.
  */
-function testSolverForConfig(config) {
-  const { digestSizeBits, numVars, bitsPerVar, bytesPerVar } = config;
+function computeDigests(data) {
+  const digests = {};
 
-  console.log(`\nTesting digest size: ${digestSizeBits} bits`);
-
-  // Step 1: Calculate block size
-  const blockSize = (numVars * bytesPerVar) + (numVars * bytesPerVar); // Coefficients + constants
-  // Adjust blockSize to include all coefficients and constants
-  // For each equation: numVars * bytesPerVar (coefficients) + bytesPerVar (constant)
-  const adjustedBlockSize = numVars * (numVars + 1) * bytesPerVar;
-
-  // Step 2: Generate random data for the block
-  const randomData = crypto.randomBytes(adjustedBlockSize);
-
-  // Step 3: Generate the system of equations
-  const { coefficients, constants } = generatePerfectlyDeterminedSystem(randomData, numVars, bytesPerVar);
-
-  // Step 4: Solve the system
-  let solutionObj;
-  try {
-    solutionObj = solveLinearSystem(coefficients, constants);
-  } catch (error) {
-    console.error(`Solver failed for digest size ${digestSizeBits} bits:`, error.message);
-    return;
-  }
-
-  const rawSolution = solutionObj.rawSolution;
-
-  // Step 5: Verify the solution (A * x ≈ b)
-  let isCorrect = true;
-  for (let i = 0; i < numVars; i++) {
-    let lhs = 0;
-    for (let j = 0; j < numVars; j++) {
-      lhs += coefficients[i][j] * rawSolution[j];
+  Object.values(DIGEST_CONFIGS).forEach(config => {
+    const { digestSizeBits } = config;
+    try {
+      const digest = reduceData(data, digestSizeBits);
+      digests[digestSizeBits] = bufferToHex(digest);
+      console.log(`Digest (${digestSizeBits} bits):`, digests[digestSizeBits]);
+    } catch (error) {
+      console.warn(error);
+      console.error(`Error computing digest for ${digestSizeBits} bits:`, error.message);
     }
+  });
 
-    const rhs = constants[i];
-
-    // Allow a small absolute error
-    if (Math.abs(lhs - rhs) > 1e-3) { // Tolerance based on float precision
-      console.error(`Equation ${i} failed: LHS=${lhs}, RHS=${rhs}, Error=${Math.abs(lhs - rhs)}`);
-      isCorrect = false;
-      // Continue checking all equations
-    }
-  }
-
-  if (isCorrect) {
-    console.log(`Verification passed: Raw solution satisfies all equations for ${digestSizeBits}-bit digest.`);
-    
-    // Step 6: Scale the solution
-    const scaledSolution = scaleSolution(rawSolution, bitsPerVar);
-    
-    // Optional: Verify scaled solution maps back appropriately (for debugging)
-    // Note: This verification is non-trivial due to scaling, so it's omitted here.
-
-    console.log(`Scaled Solution Vector (${bitsPerVar} bits per var):`, scaledSolution);
-  } else {
-    console.error(`Verification failed: Solution does not satisfy all equations for ${digestSizeBits}-bit digest.`);
-  }
+  return digests;
 }
 
 /**
- * Runs all tests based on digest configurations.
+ * Compares two digest objects and logs whether they are identical for each digest size.
+ *
+ * @param {Object} originalDigests - Digests computed from the original message (M).
+ * @param {Object} modifiedDigests - Digests computed from the modified message (M').
+ */
+function compareDigests(originalDigests, modifiedDigests) {
+  console.log("\n=== Comparison of Digests between Original (M) and Modified (M') ===");
+  Object.values(DIGEST_CONFIGS).forEach(config => {
+    const { digestSizeBits } = config;
+    const originalDigest = originalDigests[digestSizeBits];
+    const modifiedDigest = modifiedDigests[digestSizeBits];
+
+    if (originalDigest && modifiedDigest) {
+      const areEqual = originalDigest === modifiedDigest;
+      console.log(`\nDigest Size: ${digestSizeBits} bits`);
+      console.log(`  Original Digest (M):   ${originalDigest}`);
+      console.log(`  Modified Digest (M'): ${modifiedDigest}`);
+      console.log(`  Same?: ${areEqual ? 'Yes' : 'No'}`);
+    } else {
+      console.log(`\nDigest Size: ${digestSizeBits} bits`);
+      console.log(`  Original Digest (M):   ${originalDigest ? 'Available' : 'Failed'}`);
+      console.log(`  Modified Digest (M'): ${modifiedDigest ? 'Available' : 'Failed'}`);
+      console.log(`  Comparison: Unable to compare due to failed test.`);
+    }
+  });
+}
+
+/**
+ * Runs all tests by generating messages M and M', computing their digests, and comparing them.
  */
 function runAllTests() {
+  // Generate original message M with arbitrary length (e.g., 10,000 bytes)
+  const originalData = crypto.randomBytes(10000); // Adjust size as needed
+  console.log("=== Running Tests on Original Message (M) ===");
+  const originalDigests = computeDigests(originalData);
 
-  DIGEST_CONFIGS.forEach(config => {
-    testSolverForConfig(config);
-  });
+  // Generate modified message M' by flipping one random bit in M
+  const modifiedData = flipRandomBit(originalData);
+  console.log("\n=== Running Tests on Modified Message (M') ===");
+  const modifiedDigests = computeDigests(modifiedData);
+
+  // Compare the digests of M and M'
+  compareDigests(originalDigests, modifiedDigests);
 }
 
 // Run the tests

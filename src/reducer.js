@@ -1,41 +1,47 @@
 // reducer.js
-import { solveLinearSystem, scaleSolution } from './solver.js';
+import { solveLinearSystem, scaleSolutionModulo as scaleSolution } from './solver.js';
 
 /**
  * Configuration for different digest sizes.
  */
-const DIGEST_CONFIGS = {
+export const DIGEST_CONFIGS = {
   512: {
     digestSizeBits: 512,
     numVars: 16,
     bitsPerVar: 32,
+    blockSize: (16 + 1) * 4 * 16, // (numVars + 1) * bytesPerVar * numEquations
     bytesPerVar: 4
   },
   256: {
     digestSizeBits: 256,
     numVars: 16,
     bitsPerVar: 16,
+    blockSize: (16 + 1) * 2 * 16,
     bytesPerVar: 2
   },
   128: {
     digestSizeBits: 128,
     numVars: 8,
     bitsPerVar: 16,
+    blockSize: (8 + 1) * 2 * 8,
     bytesPerVar: 2
   },
   64: {
     digestSizeBits: 64,
     numVars: 8,
     bitsPerVar: 8,
+    blockSize: (8 + 1) * 1 * 8,
     bytesPerVar: 1
   },
   32: {
     digestSizeBits: 32,
     numVars: 4,
     bitsPerVar: 8,
+    blockSize: (4 + 1) * 1 * 4,
     bytesPerVar: 1
   }
 };
+
 
 /**
  * Pads the data with an 8-byte length and zero-padding to match blockSize.
@@ -80,11 +86,11 @@ function processBlock(block, config) {
   // Extract coefficients and constants
   const coefficients = [];
   const constants = [];
+  let offset = 0;
 
   for (let i = 0; i < numEquations; i++) {
     const row = [];
     for (let j = 0; j < numVars; j++) {
-      const offset = (i * numVars + j) * bytesPerVar;
       let value;
       switch (bytesPerVar) {
         case 4:
@@ -100,12 +106,14 @@ function processBlock(block, config) {
           throw new Error(`Unsupported bytesPerVar: ${bytesPerVar}`);
       }
       row.push(value);
+      offset += bytesPerVar;
     }
 
     coefficients.push(row);
 
     // Read constant
-    const constOffset = (numVars * numVars * bytesPerVar) + (i * bytesPerVar);
+    const constOffset = offset;
+    offset += bytesPerVar;
     let constant;
     switch (bytesPerVar) {
       case 4:
@@ -124,6 +132,7 @@ function processBlock(block, config) {
   }
 
   // Solve the linear system
+  console.log({block, bitsPerVar, config});
   const solutionObj = solveLinearSystem(coefficients, constants);
   const rawSolution = solutionObj.rawSolution;
 
@@ -211,7 +220,7 @@ export function reduceData(data, digestSizeBits) {
 
     // Concatenate digest chunks for the next iteration
     currentData = Buffer.concat(chunks);
-    layerOffset += 1;
+    layerOffset += (blockSize - (currentData % blockSize)) - 8;
   }
 
   // Final digest
