@@ -1,0 +1,10 @@
+- parallel calculation that is accurate to serial calculation, for speed
+- formal description and paper start
+- more extensive testing on hamming distance for 1 bit change ,and message length, for various digests, and same for 1 byte change, and also for half bits change.
+- brief analysis of what system is
+- try to prove for simple 1 block case:
+  - digest uniqueness (i guess order invariant, is there a way we can fix that? add a slack order variable)
+  - prove upper bound on hamming distance change for 1 bit change for 32 case
+  - show that we expect 32 digest to be similar
+  - even if can't prove state results of experiment and do brief analysis
+- formalize paper
