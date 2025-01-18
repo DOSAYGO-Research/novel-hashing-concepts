@@ -1,0 +1,95 @@
+
+--- Run 1 ---
+Initial Digest: 4c e3 7e fe 66 38 ba 24 f0 69 6b 6c d2 42 21 d3 cd 0 13 2 72 64 dd f5 4c b2 f9 34 ab 87 53 2b 
+
+--- 2-Step Cycle Repeated Twice Detected ---
+We have:
+  p0 in Digest[1] and Digest[3]
+  p1 in Digest[2] and Digest[4]
+
+Cycle: (p0) [ 28 97 db ] -> (p1) [ 8a d3 e5 ] -> (p0) [ 28 97 db ]
+
+Digest[1] (p0): 1a c8 <28> 61 37 44 b9 d4 a4 ee 28 c6 e2 29 c0 ab 72 34 6f 4a f2 9f 1f 75 1f 96 32 d3 <97> <db> ab 90 
+
+Digest[2] (p1): b3 e6 e2 01 61 3d 9d ba e0 2e 41 <e5> 2d fe 35 70 9b 17 29 <8a> 3d 08 dc 21 ae b4 <d3> 5c 71 fb f5 47 
+
+Digest[3] (p0): 03 1e 11 15 <97> b6 f8 3d d7 <28> 73 e4 63 47 1c <db> 30 c1 7a 56 a2 19 45 d0 a7 fa 06 d6 a2 3f 20 d0 
+
+Digest[4] (p1): 95 4e 94 <e5> 2e 9e bf 98 37 99 00 45 b2 a8 e0 e6 f6 a1 a6 04 ba 66 8f 4c b1 ad 32 ea <d3> 22 ef <8a> 
+
+
+--- Run 2 ---
+Initial Digest: 98 1b 6a 7 33 9a 1a 88 46 d7 67 25 3d f0 ce 9 21 19 21 7d 8b 91 7c 7b 6d 26 16 2f ab ea 2 71 
+
+--- 2-Step Cycle Repeated Twice Detected ---
+We have:
+  p0 in Digest[0] and Digest[2]
+  p1 in Digest[1] and Digest[3]
+
+Cycle: (p0) [ 12 68 fa ] -> (p1) [ 3a 51 ae ] -> (p0) [ 12 68 fa ]
+
+Digest[0] (p0): 7d 84 84 <fa> b1 a7 1e e9 bb 4d 23 aa ae 38 c1 2f 5d ce ae 27 ea c3 54 53 <68> 90 <12> 7a ef ef 1c e0 
+
+Digest[1] (p1): 40 83 77 04 5b <3a> 9d eb a9 6d ec ee 0e b0 f5 74 28 78 df 02 bb 0d 3d 18 8d 0f <51> <ae> bd 6b 6a dd 
+
+Digest[2] (p0): cf 86 b3 <fa> d9 76 <12> 32 1f f7 24 6f 93 a3 c4 f0 ba 83 d7 <68> 14 49 44 d4 37 28 76 5f 36 63 47 91 
+
+Digest[3] (p1): <3a> 3e 10 90 ca 47 04 16 bb <ae> <51> 24 d4 f1 25 9c 39 95 ff 2b ce cf 49 97 98 4c d0 57 7b 50 e3 7a 
+
+
+--- Run 3 ---
+Initial Digest: 5e 35 e5 8 ec e8 59 be c7 3b 47 81 8e e4 f6 71 76 cd f1 cc 5e 9c 38 c4 7a 7b fe 7d 88 7d 53 d6 
+
+--- 2-Step Cycle Repeated Twice Detected ---
+We have:
+  p0 in Digest[4] and Digest[6]
+  p1 in Digest[5] and Digest[7]
+
+Cycle: (p0) [ 1f 25 b7 ] -> (p1) [ 45 6a c2 ] -> (p0) [ 1f 25 b7 ]
+
+Digest[4] (p0): 4c 91 86 77 aa 74 bc da e7 53 96 21 bb 59 82 <25> 0a b4 dc cc <1f> c9 36 4b e4 50 a7 <b7> 6e e8 5d 45 
+
+Digest[5] (p1): 60 ba 2d 35 c9 b1 1a 35 fd 71 a6 88 fa 7f 2f b1 ab 0e 60 90 <45> 79 59 64 2f e5 4e 51 17 <c2> <6a> ec 
+
+Digest[6] (p0): <25> 85 0c f0 <1f> 06 ec f7 d8 15 87 82 d0 65 a1 1a d4 99 fa cb fb 41 fe e5 22 <b7> 05 1b fa b6 cc f0 
+
+Digest[7] (p1): 04 2a 82 69 24 d8 90 69 f7 9d 2a d4 63 c9 7c 8a a9 b5 75 e8 a6 <6a> 25 41 bf 20 86 e8 <45> 94 <c2> d1 
+
+
+--- Run 4 ---
+Initial Digest: ad cd 44 1b 9 b9 f4 3 32 6b d 6c 79 2b c8 df fe a0 65 7a 14 5a b0 4d 8c 17 6b 2c 22 1e be e1 
+
+--- 2-Step Cycle Repeated Twice Detected ---
+We have:
+  p0 in Digest[0] and Digest[2]
+  p1 in Digest[1] and Digest[3]
+
+Cycle: (p0) [ 1b 2b 43 ] -> (p1) [ 21 2d c8 ] -> (p0) [ 1b 2b 43 ]
+
+Digest[0] (p0): 87 6e cf f9 58 9f 4f <1b> 10 72 4b ff <2b> 60 6d 51 f5 46 af fb e9 5a 3f 15 57 53 22 <43> 67 1a a9 56 
+
+Digest[1] (p1): 30 <21> 1a <c8> d2 <2d> 41 f0 fa c9 5f 63 b3 c1 dd 7d 6e ff f4 71 e4 8c 01 30 52 c1 57 ae 5b 33 89 bb 
+
+Digest[2] (p0): 10 8c a7 97 96 8a 45 e7 85 e2 <2b> 81 f4 b5 6b 89 aa 1c 1e 32 28 f1 <43> 40 c2 dc 00 0a de f8 54 <1b> 
+
+Digest[3] (p1): 3f 4e 91 d8 22 de e1 ce <c8> d3 ca 35 00 <21> <2d> 05 66 4a 04 c2 2b d5 46 d7 ef d7 3d cf 06 c7 5e 40 
+
+
+--- Run 5 ---
+Initial Digest: 18 94 30 9e fd 90 b0 ca fb 31 fc f0 a0 1a 11 66 ae 3b 95 3d 74 9e 4a 1f ea 2 eb 72 31 5e de e5 
+
+--- 2-Step Cycle Repeated Twice Detected ---
+We have:
+  p0 in Digest[3] and Digest[5]
+  p1 in Digest[4] and Digest[6]
+
+Cycle: (p0) [ 16 c9 cb ] -> (p1) [ 28 8e fd ] -> (p0) [ 16 c9 cb ]
+
+Digest[3] (p0): 92 52 94 <16> b8 d2 db a6 d3 9d 36 0d db 64 47 01 eb af ce 53 bd <cb> ef 81 a6 a2 be cc 00 <c9> 4c c6 
+
+Digest[4] (p1): b5 1d 84 fc ba 60 <28> 9b d1 4f 30 c5 74 6d <8e> 41 2a 6c 35 24 <fd> 56 3b 84 62 91 7a aa ec 28 6c f7 
+
+Digest[5] (p0): 55 a0 bb ea 24 0f 19 ef d0 bb f2 e6 09 <16> c7 fa 33 96 bc b1 8d 0b 03 fa 82 98 33 bf 2b b9 <cb> <c9> 
+
+Digest[6] (p1): <fd> 0b 0d 87 94 e3 2f <28> b9 11 0b d9 e5 d4 8a a4 c6 66 c6 e1 92 5d <8e> 27 16 fe 05 ca 6e 6a 39 ed 
+
