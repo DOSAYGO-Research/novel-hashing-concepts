@@ -14,13 +14,10 @@
 #include <stdexcept>
 #include <iomanip>
 
-// Custom type definitions
 using seed_t = uint32_t;
 using HashDigest = std::array<uint8_t, 32>; // 32 bytes for SHA-256
 
-//
 // Simple SHA-256 wrapper (with optional byte-swap)
-//
 template <uint32_t hashsize, bool bswap>
 static void hash(const void* in, size_t len, seed_t seed, void* out) {
   if constexpr (hashsize == 32) {
@@ -70,9 +67,7 @@ static void hash(const void* in, size_t len, seed_t seed, void* out) {
   }
 }
 
-//
-// A helper hash for std::array<uint8_t, N>
-//
+// Hash for std::array<uint8_t, N>
 namespace std {
   template <typename T, size_t N>
   struct hash<std::array<T, N>> {
@@ -88,21 +83,18 @@ namespace std {
   };
 }
 
-//
-// The main cycle monitor
-//
 class HashCycleMonitor {
 public:
-  // pattern_width, max_length, min_revolutions remain from your original design.
-  // For your described "two-step cycle repeated twice," we basically look
-  // for an i such that:
-  //   P0 is in D_i and D_i+2
-  //   P1 is in D_i+1 and D_i+3
-  // and then show D_i..D_i+3 in full.
   HashCycleMonitor(uint32_t pattern_width, size_t max_length, size_t min_revolutions)
     : pattern_width_(pattern_width)
     , max_length_(max_length)
-    , min_revolutions_(min_revolutions) {
+    , min_revolutions_(min_revolutions)
+  {}
+
+  // Reset the internal state so we can reuse the same object for multiple runs
+  void reset() {
+    all_digests_.clear();
+    iterationPatterns_.clear();
   }
 
   void enableVerbose(bool verbose) {
@@ -123,24 +115,21 @@ public:
       // Store the digest
       all_digests_.push_back(digest);
 
-      // Build a set of all 3-byte patterns found in this digest
+      // Gather all 3-byte patterns from this digest
       std::unordered_set<std::array<uint8_t, 3>> patternSet;
       extractPatterns(digest, patternSet);
 
-      // Store that set for cycle checks
+      // Save that set for cycle checks
       iterationPatterns_.push_back(std::move(patternSet));
 
-      // Check if we can detect a two-pattern cycle repeated twice
-      // We need at least 4 digests: i, i+1, i+2, i+3
+      // We only start checking once we have i..i+3
       if (i >= 3) {
         if (checkTwoStepCycle(i - 3)) {
-          // Once we find one, we break. If you prefer multiple cycles,
-          // remove this break.
-          break;
+          break; // Found a cycle; stop unless you want multiple cycles
         }
       }
 
-      // Prepare for next iteration
+      // Next iteration
       input = digest.data();
       len = digest.size();
     }
@@ -152,27 +141,18 @@ private:
   const size_t min_revolutions_;
   bool verbose_ = false;
 
-  // Maximum number of iterations
   static constexpr size_t max_iterations_ = 10000;
 
-  // All digests so we can print them once a cycle is found
   std::vector<HashDigest> all_digests_;
-
-  // For each iteration i, store all 3-byte patterns found in that digest
   std::vector<std::unordered_set<std::array<uint8_t, 3>>> iterationPatterns_;
 
-  //
-  // Generate all 3-byte patterns from a digest, sorting each triple so that
-  // permutations map to the same "key."
-  //
+  // Extract sorted 3-byte combos from the digest
   void extractPatterns(const HashDigest& digest,
                        std::unordered_set<std::array<uint8_t, 3>>& patternSet) {
     for (size_t i = 0; i < digest.size(); ++i) {
       for (size_t j = i + 1; j < digest.size(); ++j) {
         for (size_t k = j + 1; k < digest.size(); ++k) {
-          std::array<uint8_t, 3> triple = {
-            digest[i], digest[j], digest[k]
-          };
+          std::array<uint8_t, 3> triple = { digest[i], digest[j], digest[k] };
           std::sort(triple.begin(), triple.end());
           patternSet.insert(triple);
         }
@@ -180,34 +160,24 @@ private:
     }
   }
 
-  //
-  // Check for a "2-step cycle repeated twice," specifically:
-  //   - Some pattern p0 appears in D_i and D_i+2
-  //   - Some pattern p1 appears in D_i+1 and D_i+3
-  // We'll do this for the 4 consecutive digests: i, i+1, i+2, i+3.
-  //
+  // Check for the "2-step cycle repeated twice":
+  //   p0 in D_i & D_i+2
+  //   p1 in D_i+1 & D_i+3
   bool checkTwoStepCycle(size_t i) {
-    // i+3 must be valid
     if (i + 3 >= iterationPatterns_.size()) {
       return false;
     }
 
-    // These sets are from consecutive digests
-    const auto& patterns_i   = iterationPatterns_[i];
-    const auto& patterns_i1  = iterationPatterns_[i + 1];
-    const auto& patterns_i2  = iterationPatterns_[i + 2];
-    const auto& patterns_i3  = iterationPatterns_[i + 3];
+    const auto& pat_i   = iterationPatterns_[i];
+    const auto& pat_i1  = iterationPatterns_[i + 1];
+    const auto& pat_i2  = iterationPatterns_[i + 2];
+    const auto& pat_i3  = iterationPatterns_[i + 3];
 
-    // For each candidate p0 in D_i, see if it's also in D_i+2
-    // For each candidate p1 in D_i+1, see if it's also in D_i+3
-    // If so, we have the cycle described in your example.
-    for (const auto& p0 : patterns_i) {
-      if (patterns_i2.find(p0) != patterns_i2.end()) {
-        // p0 is in D_i and D_i+2
-        for (const auto& p1 : patterns_i1) {
-          if (patterns_i3.find(p1) != patterns_i3.end()) {
-            // p1 is in D_i+1 and D_i+3
-            // We found the 2-step repeating cycle: p0 -> p1 -> p0 -> p1
+    for (const auto& p0 : pat_i) {
+      if (pat_i2.find(p0) != pat_i2.end()) {
+        for (const auto& p1 : pat_i1) {
+          if (pat_i3.find(p1) != pat_i3.end()) {
+            // Found the cycle
             visualizeCycle(i, p0, p1);
             return true;
           }
@@ -217,63 +187,60 @@ private:
     return false;
   }
 
-  //
-  // Print out the four consecutive digests:
-  //   D_i, D_i+1, D_i+2, D_i+3
-  // highlighting p0 in D_i and D_i+2,
-  // and p1 in D_i+1 and D_i+3.
-  //
+  // Show the four consecutive digests [i..i+3], highlighting p0 in D_i,D_i+2
+  // and p1 in D_i+1,D_i+3, along with a simple cycle line: p0 -> p1 -> p0
   void visualizeCycle(size_t i,
                       const std::array<uint8_t, 3>& p0,
                       const std::array<uint8_t, 3>& p1) const {
-    std::cout << "\n--- 2-Step Cycle Repeated Twice Detected ---\n";
-    std::cout << "We have:\n";
-    std::cout << "  p0 in Digest[" << i << "] and Digest[" << i+2 << "]\n";
-    std::cout << "  p1 in Digest[" << i+1 << "] and Digest[" << i+3 << "]\n\n";
+    std::cout << "\n--- 2-Step Cycle Repeated Twice Detected ---\n"
+              << "We have:\n"
+              << "  p0 in Digest[" << i << "] and Digest[" << (i+2) << "]\n"
+              << "  p1 in Digest[" << (i+1) << "] and Digest[" << (i+3) << "]\n\n";
 
-    // D_i with p0 highlighted
-    highlightDigest(i, p0, /*pLabel=*/"p0");
-    // D_i+1 with p1 highlighted
+    // Show the line: p0 -> p1 -> p0 in hex
+    std::cout << "Cycle: (p0) ";
+    printTripleHex(p0);
+    std::cout << " -> (p1) ";
+    printTripleHex(p1);
+    std::cout << " -> (p0) ";
+    printTripleHex(p0);
+    std::cout << "\n\n";
+
+    highlightDigest(i,     p0, "p0");
     highlightDigest(i + 1, p1, "p1");
-    // D_i+2 with p0 highlighted
     highlightDigest(i + 2, p0, "p0");
-    // D_i+3 with p1 highlighted
     highlightDigest(i + 3, p1, "p1");
   }
 
-  //
-  // Print one digest, highlighting the bytes in "pattern."
-  // pattern is a sorted triple, so if the digest byte is in that triple,
-  // we surround it with < > and label it if desired.
-  //
+  // Helper to print a sorted 3-byte triple
+  void printTripleHex(const std::array<uint8_t, 3>& triple) const {
+    std::cout << "[ ";
+    for (auto b : triple) {
+      std::cout << std::hex << std::setw(2) << std::setfill('0')
+                << (int)b << " ";
+    }
+    std::cout << std::dec << "]";
+  }
+
+  // Print one digest, highlighting bytes in "pattern" with < >
   void highlightDigest(size_t digestIndex,
                        const std::array<uint8_t, 3>& pattern,
                        const char* pLabel) const {
-    // Retrieve the digest
-    if (digestIndex >= all_digests_.size()) {
-      return; // Shouldn't happen, but just in case
-    }
+    if (digestIndex >= all_digests_.size()) return;
+
     const auto& digest = all_digests_[digestIndex];
-
-    std::cout << "Digest[" << digestIndex << "] (" << pLabel << "): ";
-
-    // For convenience, we might put the pattern’s 3 bytes into a small set
-    // so we can do fast membership checks
     std::unordered_multiset<uint8_t> patSet(pattern.begin(), pattern.end());
 
+    std::cout << "Digest[" << digestIndex << "] (" << pLabel << "): ";
     for (uint8_t b : digest) {
-      // Check if b is part of the pattern triple
-      auto foundIt = patSet.find(b);
-      if (foundIt != patSet.end()) {
+      auto it = patSet.find(b);
+      if (it != patSet.end()) {
         // highlight
         std::cout << "<"
                   << std::hex << std::setw(2) << std::setfill('0') << (int)b
                   << "> ";
-        // remove one occurrence from the set, so if the digest has multiple
-        // copies of the same byte, we only highlight up to pattern’s count
-        patSet.erase(foundIt);
+        patSet.erase(it); // remove one occurrence
       } else {
-        // normal print
         std::cout << std::hex << std::setw(2) << std::setfill('0') << (int)b
                   << " ";
       }
