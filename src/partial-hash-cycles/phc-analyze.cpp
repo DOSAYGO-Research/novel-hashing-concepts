@@ -1,7 +1,9 @@
 #include <iostream>
-#include "hash-cycle-monitor.h"
 #include <random>
+#include <string>
+#include "hash-cycle-monitor.h"
 
+// Utility to generate a random 32-byte digest for the "normal" mode's initial input
 HashDigest generateRandomDigest() {
   HashDigest digest;
   std::random_device rd;
@@ -22,25 +24,43 @@ int main() {
   const size_t max_length = 2;
   const size_t min_revolutions = 2;
 
-  // Create once
+  // Create the monitor once
   HashCycleMonitor monitor(pattern_width, max_length, min_revolutions);
+  monitor.enableVerbose(true);
 
   for (size_t run = 1; run <= reruns; ++run) {
-    // Reset for a fresh run
-    monitor.reset();
+    //===============================
+    // Normal "hash chain" run
+    //===============================
+    monitor.reset();            // Clear out old state
+    monitor.enableBenchmarkMode(false);
 
-    std::cout << "\n--- Run " << run << " ---\n";
+    std::cout << "\n=== Normal Run " << run << " ===\n";
+
+    // Generate random data for the initial input digest
     HashDigest initial_digest = generateRandomDigest();
 
-    // Show the initial random digest
-    std::cout << "Initial Digest: ";
+    // Display the starting digest
+    std::cout << "Initial Digest (hash mode): ";
     for (auto byte : initial_digest) {
       std::cout << std::hex << (int)byte << " ";
     }
-    std::cout << "\n";
+    std::cout << std::dec << "\n";
 
-    // Analyze
+    // Analyze with a real hash chain
     monitor.analyze(initial_digest.data(), initial_digest.size(), seed);
+
+    //===============================
+    // Benchmark "random vector" run
+    //===============================
+    monitor.reset();            // Fresh state
+    monitor.enableBenchmarkMode(true);
+
+    std::cout << "\n=== Benchmark Run " << run << " ===\n";
+    std::cout << "No fixed initial digest; each iteration is random.\n";
+
+    // In benchmark mode, the 'analyze' call ignores 'input' and 'len' anyway, so we can pass null
+    monitor.analyze(nullptr, 0, seed);
   }
 
   return 0;
