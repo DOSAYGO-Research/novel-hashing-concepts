@@ -27,10 +27,10 @@ int main() {
   // cycle_order = L
   // min_revolutions = R
   // max_length is some upper limit you might or might not use
-  const uint32_t pattern_width   = 4;  // W
-  const size_t max_length        = 4;  // Just an example
-  const size_t cycle_order       = 3;  // L
-  const size_t min_revolutions   = 2;  // R
+  const uint32_t pattern_width   = 3;  // W
+  const size_t max_length        = 7;  // Just an example
+  const size_t cycle_order       = 2;  // L
+  const size_t min_revolutions   = 3;  // R
 
   // Create the generalized monitor with the new constructor
   HashCycleMonitor monitor(pattern_width, max_length, cycle_order, min_revolutions);
