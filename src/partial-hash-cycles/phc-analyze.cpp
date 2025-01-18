@@ -1,7 +1,7 @@
 #include <iostream>
 #include <random>
 #include <string>
-#include "hash-cycle-monitor.h"
+#include "hash-cycle-monitor.h" // Updated header with the new constructor
 
 // Utility to generate a random 32-byte digest for the "normal" mode's initial input
 HashDigest generateRandomDigest() {
@@ -17,22 +17,30 @@ HashDigest generateRandomDigest() {
 }
 
 int main() {
-  // Example parameters
+  // Example: number of runs
   const size_t reruns = 5;
+  // Fixed seed for demonstration
   const seed_t seed = 12345;
-  const uint32_t pattern_width = 3;
-  const size_t max_length = 2;
-  const size_t min_revolutions = 2;
 
-  // Create the monitor once
-  HashCycleMonitor monitor(pattern_width, max_length, min_revolutions);
+  // Generalized parameters now:
+  // pattern_width = W
+  // cycle_order = L
+  // min_revolutions = R
+  // max_length is some upper limit you might or might not use
+  const uint32_t pattern_width   = 4;  // W
+  const size_t max_length        = 4;  // Just an example
+  const size_t cycle_order       = 3;  // L
+  const size_t min_revolutions   = 2;  // R
+
+  // Create the generalized monitor with the new constructor
+  HashCycleMonitor monitor(pattern_width, max_length, cycle_order, min_revolutions);
   monitor.enableVerbose(true);
 
   for (size_t run = 1; run <= reruns; ++run) {
-    //===============================
+    // ===============================
     // Normal "hash chain" run
-    //===============================
-    monitor.reset();            // Clear out old state
+    // ===============================
+    monitor.reset(); // Clear out old state
     monitor.enableBenchmarkMode(false);
 
     std::cout << "\n=== Normal Run " << run << " ===\n";
@@ -50,16 +58,16 @@ int main() {
     // Analyze with a real hash chain
     monitor.analyze(initial_digest.data(), initial_digest.size(), seed);
 
-    //===============================
+    // ===============================
     // Benchmark "random vector" run
-    //===============================
-    monitor.reset();            // Fresh state
+    // ===============================
+    monitor.reset(); // Fresh state
     monitor.enableBenchmarkMode(true);
 
     std::cout << "\n=== Benchmark Run " << run << " ===\n";
     std::cout << "No fixed initial digest; each iteration is random.\n";
 
-    // In benchmark mode, the 'analyze' call ignores 'input' and 'len' anyway, so we can pass null
+    // In benchmark mode, the 'analyze' call ignores 'input' and 'len', so null is fine
     monitor.analyze(nullptr, 0, seed);
   }
 

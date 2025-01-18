@@ -27,13 +27,23 @@ namespace std {
       std::hash<T> hasher;
       size_t result = 0;
       for (T val : arr) {
-        // Combine hashed elements in a typical way
         result ^= hasher(val) + 0x9e3779b9 + (result << 6) + (result >> 2);
       }
       return result;
     }
   };
 }
+
+// ---------- Custom Hash for std::vector<uint8_t> ----------
+struct VectorHash {
+  size_t operator()(const std::vector<uint8_t>& vec) const {
+    size_t hash = vec.size();
+    for (auto v : vec) {
+      hash ^= static_cast<size_t>(v) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    }
+    return hash;
+  }
+};
 
 // ---------- SHA-256 Wrapper (with optional byte-swap) ----------
 template <uint32_t hashsize, bool bswap>
@@ -85,63 +95,61 @@ static void hash(const void* in, size_t len, seed_t seed, void* out) {
   }
 }
 
-// ---------- HashCycleMonitor Class ----------
 class HashCycleMonitor {
 public:
-  HashCycleMonitor(uint32_t pattern_width, size_t max_length, size_t min_revolutions)
+  // Constructor now takes an additional argument: cycle_order (L)
+  HashCycleMonitor(uint32_t pattern_width, // W
+                   size_t max_length,
+                   size_t cycle_order,     // L
+                   size_t min_revolutions) // R
     : pattern_width_(pattern_width)
     , max_length_(max_length)
+    , cycle_order_(cycle_order)
     , min_revolutions_(min_revolutions) {}
 
-  // Toggle random benchmark mode (instead of iterative hashing)
+  // Toggle random benchmark mode
   void enableBenchmarkMode(bool mode) {
     benchmarkMode_ = mode;
   }
 
-  // Clear stored digests/patterns so the same object can be reused
+  // Clear stored data so object can be reused
   void reset() {
     all_digests_.clear();
     iterationPatterns_.clear();
   }
 
-  // Turn verbose output on/off
+  // Verbose on/off
   void enableVerbose(bool verbose) {
     verbose_ = verbose;
   }
 
-  // Main driver for the hashing or random generation
+  // Main driver for hashing or random generation
   void analyze(const void* input, size_t len, seed_t seed) {
-    if (pattern_width_ != 3) {
-      throw std::runtime_error("This example is specialized for 3-byte patterns only.");
-    }
-
     for (size_t i = 0; i < max_iterations_; ++i) {
       HashDigest digest;
-
       if (benchmarkMode_) {
-        // Generate a random 32-byte digest
         generateRandomDigest(digest);
       } else {
-        // Compute hash digest from previous iteration
         hash<32, false>(input, len, seed, digest.data());
       }
 
-      // Store the newly created or hashed digest
       all_digests_.push_back(digest);
 
-      // Extract 3-byte patterns from this digest
-      std::unordered_set<std::array<uint8_t, 3>> patternSet;
+      // Extract W-byte patterns from digest.
+      // Note: using std::vector<uint8_t> with our custom hash.
+      std::unordered_set<std::vector<uint8_t>, VectorHash> patternSet;
       extractPatterns(digest, patternSet);
       iterationPatterns_.push_back(std::move(patternSet));
 
-      // Check for 2-step cycle once we have at least 4 digests
-      if (i >= 3) {
-        if (checkTwoStepCycle(i - 3)) {
-          break; // We found a cycle, so stop unless we want to find more
+      // Check for cycle if we have enough iterations.
+      if (i >= (cycle_order_ * min_revolutions_)) {
+        if (checkCycle(i - (cycle_order_ * min_revolutions_) + 1)) {
+          // Cycle found; break out if that's what you want.
+          break;
         }
       }
 
-      // For the next iteration, feed the digest back in if we're in hash mode
+      // For next iteration, feed digest back in if hash mode.
       if (!benchmarkMode_) {
         input = digest.data();
         len   = digest.size();
@@ -150,21 +158,23 @@ public:
   }
 
 private:
-  // ----- Configuration Parameters -----
-  const uint32_t pattern_width_;
-  const size_t   max_length_;
-  const size_t   min_revolutions_;
+  // ----- Configuration -----
+  const uint32_t pattern_width_; // W
+  const size_t   max_length_;    // (Unused in this example, but can be used to limit iterations)
+  const size_t   cycle_order_;   // L
+  const size_t   min_revolutions_; // R
   bool           verbose_       = false;
   bool           benchmarkMode_ = false;
 
   // ----- Constants -----
   static constexpr size_t max_iterations_ = 10000;
 
-  // ----- Data Structures -----
+  // ----- Data Storage -----
   std::vector<HashDigest> all_digests_;
-  std::vector<std::unordered_set<std::array<uint8_t, 3>>> iterationPatterns_;
+  // Note: Use our custom hash for each vector pattern.
+  std::vector<std::unordered_set<std::vector<uint8_t>, VectorHash>> iterationPatterns_;
 
-  // ----- Helper: Generate a random digest for Benchmark Mode -----
+  // Helper: Generate a random digest for benchmark mode
   void generateRandomDigest(HashDigest& digest) {
     static std::random_device rd;
     static std::mt19937 gen(rd());
@@ -175,106 +185,104 @@ private:
     }
   }
 
-  // ----- Helper: Extract All 3-byte Patterns from a Digest -----
+  // Helper: Extract all W-byte patterns (combinations) from a digest.
+  // Each pattern is stored as a sorted vector<uint8_t>.
   void extractPatterns(const HashDigest& digest,
-                       std::unordered_set<std::array<uint8_t, 3>>& patternSet) {
-    // i < j < k in [0..31]
-    for (size_t i = 0; i < digest.size(); ++i) {
-      for (size_t j = i + 1; j < digest.size(); ++j) {
-        for (size_t k = j + 1; k < digest.size(); ++k) {
-          std::array<uint8_t, 3> triple = { digest[i], digest[j], digest[k] };
-          std::sort(triple.begin(), triple.end());
-          patternSet.insert(triple);
-        }
+                       std::unordered_set<std::vector<uint8_t>, VectorHash>& patternSet) {
+    // Create a vector holding indices for the combination
+    std::vector<size_t> indices(pattern_width_);
+    for (size_t i = 0; i < pattern_width_; ++i) {
+      indices[i] = i;
+    }
+
+    while (true) {
+      std::vector<uint8_t> pattern(pattern_width_);
+      for (size_t x = 0; x < pattern_width_; ++x) {
+        pattern[x] = digest[indices[x]];
+      }
+      // Normalize order
+      std::sort(pattern.begin(), pattern.end());
+      patternSet.insert(pattern);
+
+      if (!nextCombination(indices, digest.size(), pattern_width_)) {
+        break;
       }
     }
   }
 
-  // ----- Helper: Check for "2-step cycle repeated twice" -----
-  // i.e. p0 in D_i & D_i+2, and p1 in D_i+1 & D_i+3
-  bool checkTwoStepCycle(size_t i) {
-    if (i + 3 >= iterationPatterns_.size()) {
-      return false;
-    }
-
-    const auto& pat_i   = iterationPatterns_[i];
-    const auto& pat_i1  = iterationPatterns_[i + 1];
-    const auto& pat_i2  = iterationPatterns_[i + 2];
-    const auto& pat_i3  = iterationPatterns_[i + 3];
-
-    // We want p0 in pat_i and pat_i2, p1 in pat_i1 and pat_i3
-    for (const auto& p0 : pat_i) {
-      if (pat_i2.find(p0) != pat_i2.end()) {
-        for (const auto& p1 : pat_i1) {
-          if (pat_i3.find(p1) != pat_i3.end()) {
-            // Found a 2-step cycle
-            visualizeCycle(i, p0, p1);
-            return true;
-          }
+  // Generate the next combination (indices) in lexicographic order.
+  bool nextCombination(std::vector<size_t>& indices, size_t n, size_t k) {
+    for (int i = k - 1; i >= 0; --i) {
+      if (indices[i] < n - (k - i)) {
+        ++indices[i];
+        for (size_t j = i + 1; j < k; ++j) {
+          indices[j] = indices[j - 1] + 1;
         }
+        return true;
       }
     }
     return false;
   }
 
-  // ----- Helper: Show the 4 relevant digests and highlight the patterns -----
-  void visualizeCycle(size_t i,
-                      const std::array<uint8_t, 3>& p0,
-                      const std::array<uint8_t, 3>& p1) const {
-    std::cout << "\n--- 2-Step Cycle Repeated Twice Detected ---\n"
-              << "We have:\n"
-              << "  p0 in Digest[" << i     << "] and Digest[" << (i+2) << "]\n"
-              << "  p1 in Digest[" << (i+1) << "] and Digest[" << (i+3) << "]\n\n";
-
-    // Show the cycle visually
-    std::cout << "Cycle: (p0) ";
-    printTripleHex(p0);
-    std::cout << " -> (p1) ";
-    printTripleHex(p1);
-    std::cout << " -> (p0) ";
-    printTripleHex(p0);
-    std::cout << "\n\n";
-
-    highlightDigest(i,     p0, "p0");
-    highlightDigest(i + 1, p1, "p1");
-    highlightDigest(i + 2, p0, "p0");
-    highlightDigest(i + 3, p1, "p1");
-  }
-
-  // ----- Helper: Print a Sorted 3-Byte Pattern as Hex -----
-  void printTripleHex(const std::array<uint8_t, 3>& triple) const {
-    std::cout << "[ ";
-    for (auto b : triple) {
-      std::cout << std::hex << std::setw(2) << std::setfill('0')
-                << (int)b << " ";
+  // Check if there is a cycle of order L with at least R revolutions,
+  // starting at iteration "startIndex".
+  bool checkCycle(size_t startIndex) {
+    size_t neededEnd = startIndex + (min_revolutions_ * cycle_order_) - 1;
+    if (neededEnd >= iterationPatterns_.size()) {
+      return false; // Not enough iterations yet.
     }
-    std::cout << std::dec << "]";
-  }
 
-  // ----- Helper: Highlight the Bytes in the Digest that Match the Pattern -----
-  void highlightDigest(size_t digestIndex,
-                       const std::array<uint8_t, 3>& pattern,
-                       const char* pLabel) const {
-    if (digestIndex >= all_digests_.size()) return;
-
-    const auto& digest = all_digests_[digestIndex];
-    std::unordered_multiset<uint8_t> patSet(pattern.begin(), pattern.end());
-
-    std::cout << "Digest[" << digestIndex << "] (" << pLabel << "): ";
-    for (uint8_t b : digest) {
-      auto it = patSet.find(b);
-      if (it != patSet.end()) {
-        // highlight
-        std::cout << "<"
-                  << std::hex << std::setw(2) << std::setfill('0')
-                  << (int)b << "> ";
-        patSet.erase(it);
-      } else {
-        std::cout << std::hex << std::setw(2) << std::setfill('0')
-                  << (int)b << " ";
+    // For each offset in [0, L-1], find a candidate pattern that repeats R times.
+    std::vector<std::vector<uint8_t>> foundCyclePatterns(cycle_order_);
+    for (size_t offset = 0; offset < cycle_order_; ++offset) {
+      bool candidateFound = false;
+      const auto& baseSet = iterationPatterns_[startIndex + offset];
+      for (const auto& candidate : baseSet) {
+        bool works = true;
+        for (size_t r = 1; r < min_revolutions_; ++r) {
+          size_t idx = startIndex + offset + r * cycle_order_;
+          if (iterationPatterns_[idx].find(candidate) == iterationPatterns_[idx].end()) {
+            works = false;
+            break;
+          }
+        }
+        if (works) {
+          foundCyclePatterns[offset] = candidate;
+          candidateFound = true;
+          break;
+        }
+      }
+      if (!candidateFound) {
+        return false;
       }
     }
-    std::cout << std::dec << "\n\n";
+
+    visualizeCycle(startIndex, foundCyclePatterns);
+    return true;
+  }
+
+  // Visualize the found cycle.
+  void visualizeCycle(size_t startIndex,
+                      const std::vector<std::vector<uint8_t>>& cyclePatterns) const {
+    std::cout << "\n--- Cycle of Order " << cycle_order_ << " Detected, Repeated "
+              << min_revolutions_ << " Times ---\n";
+    std::cout << "Patterns:\n";
+    for (size_t i = 0; i < cyclePatterns.size(); ++i) {
+      std::cout << "  offset[" << i << "]: ";
+      printPatternHex(cyclePatterns[i]);
+      std::cout << "\n";
+    }
+    size_t endIndex = startIndex + min_revolutions_ * cycle_order_;
+    std::cout << "\nCycle spans iteration " << startIndex << " to " << (endIndex - 1) << "\n\n";
+  }
+
+  // Print a pattern of size W in hexadecimal.
+  void printPatternHex(const std::vector<uint8_t>& pattern) const {
+    std::cout << "[";
+    for (auto b : pattern) {
+      std::cout << " " << std::hex << std::setw(2) << std::setfill('0') << (int)b;
+    }
+    std::cout << " ]" << std::dec;
   }
 };
 
